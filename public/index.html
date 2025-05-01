@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Video Chat</title>
+  <style>
+    body { text-align: center; font-family: sans-serif; }
+    video { width: 45%; margin: 10px; border: 2px solid black; }
+  </style>
+</head>
+<body>
+  <h1>Simple Video Call</h1>
+  <video id="local" autoplay muted playsinline></video>
+  <video id="remote" autoplay playsinline></video>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
