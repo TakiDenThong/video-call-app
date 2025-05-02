@@ -1,75 +1,90 @@
 const socket = io();
+let localStream, peerConnection;
+let remoteId = null;
 
-const user1Btn = document.getElementById('user1Btn');
-const user2Btn = document.getElementById('user2Btn');
-const localVideo = document.getElementById('local');
-const remoteVideo = document.getElementById('remote');
-
-let localStream;
-let peerConnection;
 const config = {
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
 };
 
-// Get media
-async function startMedia() {
-  localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-  localVideo.srcObject = localStream;
-}
+const localVideo = document.getElementById('localVideo');
+const remoteVideo = document.getElementById('remoteVideo');
+const callInput = document.getElementById('callTo');
+const callBtn = document.getElementById('callBtn');
+const endBtn = document.getElementById('endBtn');
+const myIdDisplay = document.getElementById('myId');
 
-async function createPeerConnection(isCaller) {
-  peerConnection = new RTCPeerConnection(config);
+socket.on('connect', () => {
+  myIdDisplay.textContent = socket.id;
+});
 
-  peerConnection.onicecandidate = ({ candidate }) => {
-    if (candidate) {
-      socket.emit('ice-candidate', candidate);
-    }
-  };
+navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+  .then(stream => {
+    localStream = stream;
+    localVideo.srcObject = stream;
+  })
+  .catch(err => console.error('Failed to get media:', err));
 
-  peerConnection.ontrack = (event) => {
-    remoteVideo.srcObject = event.streams[0];
-  };
+callBtn.onclick = async () => {
+  remoteId = callInput.value.trim();
+  if (!remoteId) return alert('Enter remote user ID');
 
-  localStream.getTracks().forEach(track => {
-    peerConnection.addTrack(track, localStream);
-  });
+  peerConnection = createPeerConnection();
+  localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-  if (isCaller) {
-    const offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);
-    socket.emit('offer', offer);
+  const offer = await peerConnection.createOffer();
+  await peerConnection.setLocalDescription(offer);
+  socket.emit('call-user', { to: remoteId, offer });
+};
+
+endBtn.onclick = () => {
+  if (peerConnection) {
+    peerConnection.close();
+    peerConnection = null;
+    remoteVideo.srcObject = null;
   }
-}
-
-// User 1 starts the call
-user1Btn.onclick = async () => {
-  await startMedia();
-  await createPeerConnection(true);
 };
 
-// User 2 joins the call
-user2Btn.onclick = async () => {
-  await startMedia();
-  await createPeerConnection(false);
-};
+socket.on('incoming-call', async ({ from, offer }) => {
+  remoteId = from;
+  peerConnection = createPeerConnection();
+  localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-// Socket listeners
-socket.on('offer', async (offer) => {
-  if (!peerConnection) await createPeerConnection(false);
   await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
   const answer = await peerConnection.createAnswer();
   await peerConnection.setLocalDescription(answer);
-  socket.emit('answer', answer);
+
+  socket.emit('answer-call', { to: from, answer });
 });
 
-socket.on('answer', async (answer) => {
+socket.on('call-answered', async ({ answer }) => {
   await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
 });
 
-socket.on('ice-candidate', async (candidate) => {
-  try {
-    await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-  } catch (e) {
-    console.error('Error adding received ICE candidate', e);
+socket.on('ice-candidate', ({ candidate }) => {
+  if (candidate && peerConnection) {
+    peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
   }
 });
+
+function createPeerConnection() {
+  const pc = new RTCPeerConnection(config);
+
+  pc.onicecandidate = event => {
+    if (event.candidate) {
+      socket.emit('ice-candidate', { to: remoteId, candidate: event.candidate });
+    }
+  };
+
+  pc.ontrack = event => {
+    remoteVideo.srcObject = event.streams[0];
+  };
+
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+      pc.close();
+      remoteVideo.srcObject = null;
+    }
+  };
+
+  return pc;
+}
