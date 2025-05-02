@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Video Chat</title>
+  <style>
+    body {
+      text-align: center;
+      font-family: sans-serif;
+      background: #f4f4f4;
+      padding: 20px;
+    }
+    video {
+      width: 45%;
+      margin: 10px;
+      border: 2px solid black;
+      background: #000;
+    }
+    .buttons {
+      margin: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin: 0 10px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>Simple Video Call</h1>
+  <div class="buttons">
+    <button id="user1Btn">Start as User 1</button>
+    <button id="user2Btn">Start as User 2</button>
+  </div>
+
+  <video id="local" autoplay muted playsinline></video>
+  <video id="remote" autoplay playsinline></video>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
